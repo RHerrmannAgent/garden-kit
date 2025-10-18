@@ -16,9 +16,9 @@ function Get-RepoRoot {
 }
 
 function Get-CurrentBranch {
-    # First check if SPECIFY_FEATURE environment variable is set
-    if ($env:SPECIFY_FEATURE) {
-        return $env:SPECIFY_FEATURE
+    # First check if gardify_FEATURE environment variable is set
+    if ($env:gardify_FEATURE) {
+        return $env:gardify_FEATURE
     }
     
     # Then check git if available
@@ -75,7 +75,7 @@ function Test-FeatureBranch {
     
     # For non-git repos, we can't enforce branch naming but still provide output
     if (-not $HasGit) {
-        Write-Warning "[specify] Warning: Git repository not detected; skipped branch validation"
+        Write-Warning "[gardify] Warning: Git repository not detected; skipped branch validation"
         return $true
     }
     

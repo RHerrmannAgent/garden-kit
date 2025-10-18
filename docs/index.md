@@ -1,12 +1,12 @@
-# Spec Kit
+# Garden Kit
 
-*Build high-quality software faster.*
+*Build high-quality environments faster.*
 
-**An effort to allow organizations to focus on product scenarios rather than writing undifferentiated code with the help of Spec-Driven Development.**
+**An effort to allow organizations to focus on well planned gardens with the help of Spec-Driven Gardening.**
 
-## What is Spec-Driven Development?
+## What is Spec-Driven Gardening?
 
-Spec-Driven Development **flips the script** on traditional software development. For decades, code has been king — specifications were just scaffolding we built and discarded once the "real work" of coding began. Spec-Driven Development changes this: **specifications become executable**, directly generating working implementations rather than just guiding them.
+Spec-Driven Gardening **flips the script** on traditional garden development. For decades, code has been king — specifications were just scaffolding we built and discarded once the "real work" of coding began. Spec-Driven Development changes this: **specifications become executable**, directly generating working implementations rather than just guiding them.
 
 ## Getting Started
 

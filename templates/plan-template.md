@@ -3,7 +3,7 @@
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
-**Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
+**Note**: This template is filled in by the `/gardenkit.plan` command. See `.gardify/templates/commands/plan.md` for the execution workflow.
 
 ## Summary
 
@@ -39,12 +39,12 @@
 
 ```
 specs/[###-feature]/
-├── plan.md              # This file (/speckit.plan command output)
-├── research.md          # Phase 0 output (/speckit.plan command)
-├── data-model.md        # Phase 1 output (/speckit.plan command)
-├── quickstart.md        # Phase 1 output (/speckit.plan command)
-├── contracts/           # Phase 1 output (/speckit.plan command)
-└── tasks.md             # Phase 2 output (/speckit.tasks command - NOT created by /speckit.plan)
+├── plan.md              # This file (/gardenkit.plan command output)
+├── research.md          # Phase 0 output (/gardenkit.plan command)
+├── data-model.md        # Phase 1 output (/gardenkit.plan command)
+├── quickstart.md        # Phase 1 output (/gardenkit.plan command)
+├── contracts/           # Phase 1 output (/gardenkit.plan command)
+└── tasks.md             # Phase 2 output (/gardenkit.tasks command - NOT created by /gardenkit.plan)
 ```
 
 ### Source Code (repository root)

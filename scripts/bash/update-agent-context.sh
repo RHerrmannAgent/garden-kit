@@ -62,18 +62,18 @@ AGENT_TYPE="${1:-}"
 CLAUDE_FILE="$REPO_ROOT/CLAUDE.md"
 GEMINI_FILE="$REPO_ROOT/GEMINI.md"
 COPILOT_FILE="$REPO_ROOT/.github/copilot-instructions.md"
-CURSOR_FILE="$REPO_ROOT/.cursor/rules/specify-rules.mdc"
+CURSOR_FILE="$REPO_ROOT/.cursor/rules/gardify-rules.mdc"
 QWEN_FILE="$REPO_ROOT/QWEN.md"
 AGENTS_FILE="$REPO_ROOT/AGENTS.md"
-WINDSURF_FILE="$REPO_ROOT/.windsurf/rules/specify-rules.md"
-KILOCODE_FILE="$REPO_ROOT/.kilocode/rules/specify-rules.md"
-AUGGIE_FILE="$REPO_ROOT/.augment/rules/specify-rules.md"
-ROO_FILE="$REPO_ROOT/.roo/rules/specify-rules.md"
+WINDSURF_FILE="$REPO_ROOT/.windsurf/rules/gardify-rules.md"
+KILOCODE_FILE="$REPO_ROOT/.kilocode/rules/gardify-rules.md"
+AUGGIE_FILE="$REPO_ROOT/.augment/rules/gardify-rules.md"
+ROO_FILE="$REPO_ROOT/.roo/rules/gardify-rules.md"
 CODEBUDDY_FILE="$REPO_ROOT/CODEBUDDY.md"
 Q_FILE="$REPO_ROOT/AGENTS.md"
 
 # Template file
-TEMPLATE_FILE="$REPO_ROOT/.specify/templates/agent-file-template.md"
+TEMPLATE_FILE="$REPO_ROOT/.gardify/templates/agent-file-template.md"
 
 # Global variables for parsed plan data
 NEW_LANG=""
@@ -123,7 +123,7 @@ validate_environment() {
         if [[ "$HAS_GIT" == "true" ]]; then
             log_info "Make sure you're on a feature branch"
         else
-            log_info "Set SPECIFY_FEATURE environment variable or create a feature first"
+            log_info "Set gardify_FEATURE environment variable or create a feature first"
         fi
         exit 1
     fi
@@ -133,7 +133,7 @@ validate_environment() {
         log_error "No plan.md found at $NEW_PLAN"
         log_info "Make sure you're working on a feature with a corresponding spec directory"
         if [[ "$HAS_GIT" != "true" ]]; then
-            log_info "Use: export SPECIFY_FEATURE=your-feature-name or create a new feature first"
+            log_info "Use: export gardify_FEATURE=your-feature-name or create a new feature first"
         fi
         exit 1
     fi

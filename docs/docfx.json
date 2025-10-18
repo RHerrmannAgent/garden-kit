@@ -56,9 +56,9 @@
     "cleanupCacheHistory": false,
     "disableGitFeatures": false,
     "globalMetadata": {
-      "_appTitle": "Spec Kit Documentation",
-      "_appName": "Spec Kit",
-      "_appFooter": "Spec Kit - A specification-driven development toolkit",
+      "_appTitle": "Garden Kit Documentation",
+      "_appName": "Garden Kit",
+      "_appFooter": "Garden Kit - A specification-driven garden plan toolkit",
       "_enableSearch": true,
       "_disableContribution": false,
       "_gitContribute": {

@@ -39,7 +39,7 @@ env/
 .env.local
 *.lock
 
-# Spec Kit-specific files
+# Garden Kit-specific files
 .genreleases/
 *.zip
 sdd-*/
