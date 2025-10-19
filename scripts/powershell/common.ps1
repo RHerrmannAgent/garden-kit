@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Common PowerShell functions analogous to common.sh
+# Shared PowerShell helpers for Garden Kit workflows.
 
 function Get-RepoRoot {
     try {
@@ -8,20 +8,18 @@ function Get-RepoRoot {
             return $result
         }
     } catch {
-        # Git command failed
+        # git not available or repo missing
     }
-    
-    # Fall back to script location for non-git repos
+
+    # Fallback: three levels up from scripts directory
     return (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 }
 
 function Get-CurrentBranch {
-    # First check if gardify_FEATURE environment variable is set
     if ($env:gardify_FEATURE) {
         return $env:gardify_FEATURE
     }
-    
-    # Then check git if available
+
     try {
         $result = git rev-parse --abbrev-ref HEAD 2>$null
         if ($LASTEXITCODE -eq 0) {
@@ -30,15 +28,14 @@ function Get-CurrentBranch {
     } catch {
         # Git command failed
     }
-    
-    # For non-git repos, try to find the latest feature directory
+
     $repoRoot = Get-RepoRoot
     $specsDir = Join-Path $repoRoot "specs"
-    
+
     if (Test-Path $specsDir) {
         $latestFeature = ""
         $highest = 0
-        
+
         Get-ChildItem -Path $specsDir -Directory | ForEach-Object {
             if ($_.Name -match '^(\d{3})-') {
                 $num = [int]$matches[1]
@@ -48,13 +45,12 @@ function Get-CurrentBranch {
                 }
             }
         }
-        
+
         if ($latestFeature) {
             return $latestFeature
         }
     }
-    
-    # Final fallback
+
     return "main"
 }
 
@@ -72,23 +68,26 @@ function Test-FeatureBranch {
         [string]$Branch,
         [bool]$HasGit = $true
     )
-    
-    # For non-git repos, we can't enforce branch naming but still provide output
+
     if (-not $HasGit) {
         Write-Warning "[gardify] Warning: Git repository not detected; skipped branch validation"
         return $true
     }
-    
+
     if ($Branch -notmatch '^[0-9]{3}-') {
         Write-Output "ERROR: Not on a feature branch. Current branch: $Branch"
-        Write-Output "Feature branches should be named like: 001-feature-name"
+        Write-Output "Garden branches should follow: 001-garden-name"
         return $false
     }
+
     return $true
 }
 
 function Get-FeatureDir {
-    param([string]$RepoRoot, [string]$Branch)
+    param(
+        [string]$RepoRoot,
+        [string]$Branch
+    )
     Join-Path $RepoRoot "specs/$Branch"
 }
 
@@ -97,41 +96,54 @@ function Get-FeaturePathsEnv {
     $currentBranch = Get-CurrentBranch
     $hasGit = Test-HasGit
     $featureDir = Get-FeatureDir -RepoRoot $repoRoot -Branch $currentBranch
-    
+
     [PSCustomObject]@{
-        REPO_ROOT     = $repoRoot
-        CURRENT_BRANCH = $currentBranch
-        HAS_GIT       = $hasGit
-        FEATURE_DIR   = $featureDir
-        FEATURE_SPEC  = Join-Path $featureDir 'spec.md'
-        IMPL_PLAN     = Join-Path $featureDir 'plan.md'
-        TASKS         = Join-Path $featureDir 'tasks.md'
-        RESEARCH      = Join-Path $featureDir 'research.md'
-        DATA_MODEL    = Join-Path $featureDir 'data-model.md'
-        QUICKSTART    = Join-Path $featureDir 'quickstart.md'
-        CONTRACTS_DIR = Join-Path $featureDir 'contracts'
+        REPO_ROOT         = $repoRoot
+        CURRENT_BRANCH    = $currentBranch
+        HAS_GIT           = $hasGit
+        FEATURE_DIR       = $featureDir
+        FEATURE_SPEC      = Join-Path $featureDir 'spec.md'
+        IMPL_PLAN         = Join-Path $featureDir 'plan.md'
+        TASKS             = Join-Path $featureDir 'tasks.md'
+        SITE_RESEARCH     = Join-Path $featureDir 'site-research.md'
+        EXISTING_PLANTS   = Join-Path $featureDir 'existing-plant-inventory.md'
+        PLANTING_SCHEMA   = Join-Path $featureDir 'planting-schema.md'
+        SEASONAL_CALENDAR = Join-Path $featureDir 'seasonal-calendar.md'
+        MONTHLY_CARE      = Join-Path $featureDir 'monthly-care-plan.md'
+        TOOLS             = Join-Path $featureDir 'tools.md'
+        QUICKSTART        = Join-Path $featureDir 'quickstart.md'
     }
 }
 
 function Test-FileExists {
-    param([string]$Path, [string]$Description)
+    param(
+        [string]$Path,
+        [string]$Description
+    )
+
     if (Test-Path -Path $Path -PathType Leaf) {
-        Write-Output "  ✓ $Description"
+        Write-Output "  - $Description"
         return $true
-    } else {
-        Write-Output "  ✗ $Description"
-        return $false
     }
+
+    Write-Output "  - (missing) $Description"
+    return $false
 }
 
 function Test-DirHasFiles {
-    param([string]$Path, [string]$Description)
-    if ((Test-Path -Path $Path -PathType Container) -and (Get-ChildItem -Path $Path -ErrorAction SilentlyContinue | Where-Object { -not $_.PSIsContainer } | Select-Object -First 1)) {
-        Write-Output "  ✓ $Description"
-        return $true
-    } else {
-        Write-Output "  ✗ $Description"
-        return $false
-    }
-}
+    param(
+        [string]$Path,
+        [string]$Description
+    )
 
+    if ((Test-Path -Path $Path -PathType Container) -and
+        (Get-ChildItem -Path $Path -ErrorAction SilentlyContinue |
+         Where-Object { -not $_.PSIsContainer } |
+         Select-Object -First 1)) {
+        Write-Output "  - $Description"
+        return $true
+    }
+
+    Write-Output "  - (missing) $Description"
+    return $false
+}

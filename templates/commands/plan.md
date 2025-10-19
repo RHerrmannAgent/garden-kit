@@ -1,5 +1,5 @@
 ---
-description: Execute the implementation planning workflow using the plan template to generate design artifacts.
+description: Produce the garden layout plan and supporting artefacts using the planning template.
 scripts:
   sh: scripts/bash/setup-plan.sh --json
   ps: scripts/powershell/setup-plan.ps1 -Json
@@ -8,80 +8,112 @@ agent_scripts:
   ps: scripts/powershell/update-agent-context.ps1 -AgentType __AGENT__
 ---
 
-## User Input
+## Gardener Input
 
 ```text
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty).
+Incorporate any additional guidance the gardener provided here (tool preferences, budget, time horizon).
+
+---
 
 ## Outline
 
-1. **Setup**: Run `{SCRIPT}` from repo root and parse JSON for FEATURE_SPEC, IMPL_PLAN, SPECS_DIR, BRANCH. For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+1. **Initial Setup**  
+   - Run `{SCRIPT}` from the repository root.  
+   - Parse JSON output capturing `FEATURE_SPEC`, `IMPL_PLAN`, `SPECS_DIR`, and `BRANCH`. Paths must remain absolute.
 
-2. **Load context**: Read FEATURE_SPEC and `/memory/constitution.md`. Load IMPL_PLAN template (already copied).
+2. **Gather Context**  
+   - Read the existing garden vision (`FEATURE_SPEC`).  
+   - Load `/memory/constitution.md` for guiding principles.  
+ - Open the planning template (`IMPL_PLAN`) copied by the script.
 
-3. **Execute plan workflow**: Follow the structure in IMPL_PLAN template to:
-   - Fill Technical Context (mark unknowns as "NEEDS CLARIFICATION")
-   - Fill Constitution Check section from constitution
-   - Evaluate gates (ERROR if violations unjustified)
-   - Phase 0: Generate research.md (resolve all NEEDS CLARIFICATION)
-   - Phase 1: Generate data-model.md, contracts/, quickstart.md
-   - Phase 1: Update agent context by running the agent script
-   - Re-evaluate Constitution Check post-design
+3. **Plan Workflow**  
+   Follow the template step-by-step:
+   - Translate site conditions into the “Site Conditions & Research Highlights” section. Any unknowns become `NEEDS CLARIFICATION` markers.
+   - Complete the Constitution Check using the garden’s principles; flag conflicts immediately.
+   - Map out physical layout summaries and phases aligned with the vision scenarios.
+   - Document all legacy plantings in the **Established Plant Inventory** section and capture preservation or relocation needs.
+   - **Create the Tool & Resource Inventory** table. This is mandatory. Populate it with everything the gardener has or can access. Save the same information into `tools.md` (see Phase 1 below).
+   - Summarise planting schema, seasonal strategy, risks, and observation loops.
+   - Capture stewardship priorities that will flow into the monthly care plan.
 
-4. **Stop and report**: Command ends after Phase 2 planning. Report branch, IMPL_PLAN path, and generated artifacts.
+4. **Generate Supporting Artefacts**  
+   - `site-research.md`: Consolidate soil data, climate notes, regulations, and observations. Resolve all `NEEDS CLARIFICATION` markers by the end of this document.  
+   - `existing-plant-inventory.md`: Catalogue trees, shrubs, perennials, and volunteer plants with decisions to keep, relocate, or remove. Include protection notes for critical root zones.  
+   - `planting-schema.md`: Detail plant lists, layers, spacing, companion notes, and succession plans.  
+   - `seasonal-calendar.md`: Outline care reminders and observations month-by-month.  
+   - `monthly-care-plan.md`: Produce a comprehensive month-by-month work schedule with tools, responsible parties, and success measures.  
+   - `tools.md`: Copy the final tool inventory table, adding any notes about maintenance status or borrowing needs.  
+   - `quickstart.md`: Provide orientation for volunteers/visitors—include safety reminders and garden etiquette.  
+   - Create or refresh any agent-specific context files by running the appropriate `{AGENT_SCRIPT}`.
 
-## Phases
+5. **Re-run Constitution Check**  
+   - After drafting the artefacts, re-evaluate whether all principles are upheld.  
+   - Document any mitigation steps if a principle cannot be met immediately.
 
-### Phase 0: Outline & Research
+6. **Stop and Report**  
+   - Planning ends once the plan template and artefacts above are produced.  
+   - Report: branch name, `plan.md` path, generated artefacts, and outstanding clarifications (if any). Highlight readiness (or blockers) for `/gardenkit.tasks`.
 
-1. **Extract unknowns from Technical Context** above:
-   - For each NEEDS CLARIFICATION → research task
-   - For each dependency → best practices task
-   - For each integration → patterns task
+---
 
-2. **Generate and dispatch research agents**:
+## Phases & Deliverables
+
+### Phase 0 – Research & Unknowns
+1. Collect all `NEEDS CLARIFICATION` items from the site conditions section.  
+2. For each unknown create a research prompt, e.g.,  
    ```
-   For each unknown in Technical Context:
-     Task: "Research {unknown} for {feature context}"
-   For each technology choice:
-     Task: "Find best practices for {tech} in {domain}"
-   ```
+   Task: "Research companion planting for tomatoes in USDA zone 7."
+   Task: "Confirm local guidelines for rainwater barrel placement."
+   ```  
+3. Consolidate findings into `site-research.md` using the structure:  
+   - Discovery  
+   - Rationale  
+   - Alternatives considered  
+   - Guidance for plan
 
-3. **Consolidate findings** in `research.md` using format:
-   - Decision: [what was chosen]
-   - Rationale: [why chosen]
-   - Alternatives considered: [what else evaluated]
+**Output**: `site-research.md` with no unresolved unknowns.
 
-**Output**: research.md with all NEEDS CLARIFICATION resolved
+### Phase 1 – Design Artefacts
+**Prerequisite**: Phase 0 complete.
 
-### Phase 1: Design & Contracts
+1. **Established Plant Inventory (`existing-plant-inventory.md`)**  
+   - Record every legacy plant, tree, and shrub with health status, size, and decisions (keep / relocate / remove).  
+   - Note protection measures for critical root zones and how existing plants influence new design choices.
 
-**Prerequisites:** `research.md` complete
+1. **Planting Schema (`planting-schema.md`)**  
+   - Break down by zone or bed.  
+   - Include botanical names, spacing, height, water needs, and companion notes.  
+   - Reference succession planting or rotation where relevant.
 
-1. **Extract entities from feature spec** → `data-model.md`:
-   - Entity name, fields, relationships
-   - Validation rules from requirements
-   - State transitions if applicable
+2. **Seasonal Calendar (`seasonal-calendar.md`)**  
+   - Create monthly or bi-weekly reminders for planting, pruning, feeding, observing, and logging data.  
+   - Include checks that align with success criteria (e.g., “Record pollinator visits each weekend in June.”).
 
-2. **Generate API contracts** from functional requirements:
-   - For each user action → endpoint
-   - Use standard REST/GraphQL patterns
-   - Output OpenAPI/GraphQL schema to `/contracts/`
+3. **Monthly Care Plan (`monthly-care-plan.md`)**  
+   - For each month, list detailed tasks, responsible parties, required tools, and expected outcomes.  
+   - Highlight work parties, observation prompts, and contingencies for weather or resource constraints.
 
-3. **Agent context update**:
-   - Run `{AGENT_SCRIPT}`
-   - These scripts detect which AI agent is in use
-   - Update the appropriate agent-specific context file
-   - Add only new technology from current plan
-   - Preserve manual additions between markers
+3. **Tool Inventory (`tools.md`)**  
+   - Copy the inventory table from `plan.md`.  
+   - Add maintenance status, borrow/reserve notes, safety gear requirements.  
+   - This file is required for `/gardenkit.tasks`; if items are missing, note acquisition plans.
 
-**Output**: data-model.md, /contracts/*, quickstart.md, agent-specific file
+4. **Quickstart Guide (`quickstart.md`)**  
+   - Audience: volunteers, caretakers, new gardeners.  
+   - Include orientation map references, safety rules, tool checkout process, and observation logging instructions.
 
-## Key rules
+5. **Agent Context Update**  
+   - Run `{AGENT_SCRIPT}` to sync the assistant-specific context file with the new plan, highlighting zones, tools, and safety rules.
 
-- Use absolute paths
-- ERROR on gate failures or unresolved clarifications
+**Outputs**: `planting-schema.md`, `seasonal-calendar.md`, `tools.md`, `quickstart.md`, updated agent context.
 
+---
+
+## Key Rules
+
+- Use absolute paths for all file references.  
+- Every `NEEDS CLARIFICATION` marker must be resolved or explicitly carried as an open question at the end of the plan.  
+- Do not proceed to `/gardenkit.tasks` until the tool inventory exists and Constitution Check passes (or deviations are documented with mitigation).

@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# Create a new feature
+# Create a new garden vision
 [CmdletBinding()]
 param(
     [switch]$Json,
@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 
 # Show help if requested
 if ($Help) {
-    Write-Host "Usage: ./create-new-feature.ps1 [-Json] [-ShortName <name>] <feature description>"
+    Write-Host "Usage: ./create-new-feature.ps1 [-Json] [-ShortName <name>] <garden description>"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -Json               Output in JSON format"
@@ -20,14 +20,14 @@ if ($Help) {
     Write-Host "  -Help               Show this help message"
     Write-Host ""
     Write-Host "Examples:"
-    Write-Host "  ./create-new-feature.ps1 'Add user authentication system' -ShortName 'user-auth'"
-    Write-Host "  ./create-new-feature.ps1 'Implement OAuth2 integration for API'"
+    Write-Host "  ./create-new-feature.ps1 'Design a pollinator border with native perennials' -ShortName 'pollinator-border'"
+    Write-Host "  ./create-new-feature.ps1 'Transform backyard into kitchen garden with raised beds'"
     exit 0
 }
 
-# Check if feature description provided
+# Check if garden description provided
 if (-not $FeatureDescription -or $FeatureDescription.Count -eq 0) {
-    Write-Error "Usage: ./create-new-feature.ps1 [-Json] [-ShortName <name>] <feature description>"
+    Write-Error "Usage: ./create-new-feature.ps1 [-Json] [-ShortName <name>] <garden description>"
     exit 1
 }
 
@@ -207,4 +207,3 @@ if ($Json) {
     Write-Output "HAS_GIT: $hasGit"
     Write-Output "gardify_FEATURE environment variable set to: $branchName"
 }
-

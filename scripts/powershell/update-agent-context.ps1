@@ -1,437 +1,247 @@
-#!/usr/bin/env pwsh
-<#!
-.SYNOPSIS
-Update agent context files with information from plan.md (PowerShell version)
+﻿#!/usr/bin/env pwsh
 
-.DESCRIPTION
-Mirrors the behavior of scripts/bash/update-agent-context.sh:
- 1. Environment Validation
- 2. Plan Data Extraction
- 3. Agent File Management (create from template or update existing)
- 4. Content Generation (technology stack, recent changes, timestamp)
- 5. Multi-Agent Support (claude, gemini, copilot, cursor-agent, qwen, opencode, codex, windsurf, kilocode, auggie, roo, q)
-
-.PARAMETER AgentType
-Optional agent key to update a single agent. If omitted, updates all existing agent files (creating a default Claude file if none exist).
-
-.EXAMPLE
-./update-agent-context.ps1 -AgentType claude
-
-.EXAMPLE
-./update-agent-context.ps1   # Updates all existing agent files
-
-.NOTES
-Relies on common helper functions in common.ps1
-#>
+[CmdletBinding()]
 param(
-    [Parameter(Position=0)]
-    [ValidateSet('claude','gemini','copilot','cursor-agent','qwen','opencode','codex','windsurf','kilocode','auggie','roo','codebuddy','q')]
     [string]$AgentType
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Import common helpers
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path $ScriptDir 'common.ps1')
+. "$PSScriptRoot/common.ps1"
 
-# Acquire environment paths
-$envData = Get-FeaturePathsEnv
-$REPO_ROOT     = $envData.REPO_ROOT
-$CURRENT_BRANCH = $envData.CURRENT_BRANCH
-$HAS_GIT       = $envData.HAS_GIT
-$IMPL_PLAN     = $envData.IMPL_PLAN
-$NEW_PLAN = $IMPL_PLAN
+$paths = Get-FeaturePathsEnv
 
-# Agent file paths
-$CLAUDE_FILE   = Join-Path $REPO_ROOT 'CLAUDE.md'
-$GEMINI_FILE   = Join-Path $REPO_ROOT 'GEMINI.md'
-$COPILOT_FILE  = Join-Path $REPO_ROOT '.github/copilot-instructions.md'
-$CURSOR_FILE   = Join-Path $REPO_ROOT '.cursor/rules/gardify-rules.mdc'
-$QWEN_FILE     = Join-Path $REPO_ROOT 'QWEN.md'
-$AGENTS_FILE   = Join-Path $REPO_ROOT 'AGENTS.md'
-$WINDSURF_FILE = Join-Path $REPO_ROOT '.windsurf/rules/gardify-rules.md'
-$KILOCODE_FILE = Join-Path $REPO_ROOT '.kilocode/rules/gardify-rules.md'
-$AUGGIE_FILE   = Join-Path $REPO_ROOT '.augment/rules/gardify-rules.md'
-$ROO_FILE      = Join-Path $REPO_ROOT '.roo/rules/gardify-rules.md'
-$CODEBUDDY_FILE = Join-Path $REPO_ROOT 'CODEBUDDY.md'
-$Q_FILE        = Join-Path $REPO_ROOT 'AGENTS.md'
+$PlanPath      = $paths.IMPL_PLAN
+$SpecPath      = $paths.FEATURE_SPEC
+$ToolsPath     = $paths.TOOLS
+$SeasonalPath  = $paths.SEASONAL_CALENDAR
+$PlantingPath  = $paths.PLANTING_SCHEMA
 
-$TEMPLATE_FILE = Join-Path $REPO_ROOT '.gardify/templates/agent-file-template.md'
-
-# Parsed plan data placeholders
-$script:NEW_LANG = ''
-$script:NEW_FRAMEWORK = ''
-$script:NEW_DB = ''
-$script:NEW_PROJECT_TYPE = ''
-
-function Write-Info { 
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Message
-    )
-    Write-Host "INFO: $Message" 
+if (-not (Test-Path $PlanPath)) {
+    throw "plan.md not found at $PlanPath"
 }
 
-function Write-Success { 
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Message
-    )
-    Write-Host "$([char]0x2713) $Message" 
+$ClaudeFile    = Join-Path $paths.REPO_ROOT 'CLAUDE.md'
+$GeminiFile    = Join-Path $paths.REPO_ROOT 'GEMINI.md'
+$CopilotFile   = Join-Path $paths.REPO_ROOT '.github/copilot-instructions.md'
+$CursorFile    = Join-Path $paths.REPO_ROOT '.cursor/rules/gardify-rules.mdc'
+$QwenFile      = Join-Path $paths.REPO_ROOT 'QWEN.md'
+$AgentsFile    = Join-Path $paths.REPO_ROOT 'AGENTS.md'
+$WindsurfFile  = Join-Path $paths.REPO_ROOT '.windsurf/rules/gardify-rules.md'
+$KilocodeFile  = Join-Path $paths.REPO_ROOT '.kilocode/rules/gardify-rules.md'
+$AuggieFile    = Join-Path $paths.REPO_ROOT '.augment/rules/gardify-rules.md'
+$RooFile       = Join-Path $paths.REPO_ROOT '.roo/rules/gardify-rules.md'
+$CodeBuddyFile = Join-Path $paths.REPO_ROOT 'CODEBUDDY.md'
+$QFile         = $AgentsFile
+$TemplateFile  = Join-Path $paths.REPO_ROOT '.gardify/templates/agent-file-template.md'
+
+$DateStamp = Get-Date -Format 'yyyy-MM-dd'
+$BranchName = $paths.CURRENT_BRANCH
+if ($BranchName -match '^[0-9]{3}-(.+)$') {
+    $GardenSlug = $Matches[1]
+} else {
+    $GardenSlug = $BranchName
+}
+$GardenTitle = ($GardenSlug -replace '-', ' ')
+if ($GardenTitle.Length -gt 0) {
+    $GardenTitle = $GardenTitle.Substring(0,1).ToUpper() + $GardenTitle.Substring(1)
 }
 
-function Write-WarningMsg { 
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Message
-    )
-    Write-Warning $Message 
-}
-
-function Write-Err { 
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Message
-    )
-    Write-Host "ERROR: $Message" -ForegroundColor Red 
-}
-
-function Validate-Environment {
-    if (-not $CURRENT_BRANCH) {
-        Write-Err 'Unable to determine current feature'
-        if ($HAS_GIT) { Write-Info "Make sure you're on a feature branch" } else { Write-Info 'Set gardify_FEATURE environment variable or create a feature first' }
-        exit 1
-    }
-    if (-not (Test-Path $NEW_PLAN)) {
-        Write-Err "No plan.md found at $NEW_PLAN"
-        Write-Info 'Ensure you are working on a feature with a corresponding spec directory'
-        if (-not $HAS_GIT) { Write-Info 'Use: $env:gardify_FEATURE=your-feature-name or create a new feature first' }
-        exit 1
-    }
-    if (-not (Test-Path $TEMPLATE_FILE)) {
-        Write-Err "Template file not found at $TEMPLATE_FILE"
-        Write-Info 'Run gardify init to scaffold .gardify/templates, or add agent-file-template.md there.'
-        exit 1
+if (Test-Path $SpecPath) {
+    $spec = Get-Content $SpecPath -Raw
+    if ($spec -match '^# .*?:\s*(.+)$') {
+        $GardenTitle = $Matches[1].Trim()
     }
 }
 
-function Extract-PlanField {
+function Get-PlanSection {
     param(
-        [Parameter(Mandatory=$true)]
-        [string]$FieldPattern,
-        [Parameter(Mandatory=$true)]
-        [string]$PlanFile
+        [string]$Heading,
+        [string]$Path
     )
-    if (-not (Test-Path $PlanFile)) { return '' }
-    # Lines like **Language/Version**: Python 3.12
-    $regex = "^\*\*$([Regex]::Escape($FieldPattern))\*\*: (.+)$"
-    Get-Content -LiteralPath $PlanFile -Encoding utf8 | ForEach-Object {
-        if ($_ -match $regex) { 
-            $val = $Matches[1].Trim()
-            if ($val -notin @('NEEDS CLARIFICATION','N/A')) { return $val }
-        }
-    } | Select-Object -First 1
-}
-
-function Parse-PlanData {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$PlanFile
-    )
-    if (-not (Test-Path $PlanFile)) { Write-Err "Plan file not found: $PlanFile"; return $false }
-    Write-Info "Parsing plan data from $PlanFile"
-    $script:NEW_LANG        = Extract-PlanField -FieldPattern 'Language/Version' -PlanFile $PlanFile
-    $script:NEW_FRAMEWORK   = Extract-PlanField -FieldPattern 'Primary Dependencies' -PlanFile $PlanFile
-    $script:NEW_DB          = Extract-PlanField -FieldPattern 'Storage' -PlanFile $PlanFile
-    $script:NEW_PROJECT_TYPE = Extract-PlanField -FieldPattern 'Project Type' -PlanFile $PlanFile
-
-    if ($NEW_LANG) { Write-Info "Found language: $NEW_LANG" } else { Write-WarningMsg 'No language information found in plan' }
-    if ($NEW_FRAMEWORK) { Write-Info "Found framework: $NEW_FRAMEWORK" }
-    if ($NEW_DB -and $NEW_DB -ne 'N/A') { Write-Info "Found database: $NEW_DB" }
-    if ($NEW_PROJECT_TYPE) { Write-Info "Found project type: $NEW_PROJECT_TYPE" }
-    return $true
-}
-
-function Format-TechnologyStack {
-    param(
-        [Parameter(Mandatory=$false)]
-        [string]$Lang,
-        [Parameter(Mandatory=$false)]
-        [string]$Framework
-    )
-    $parts = @()
-    if ($Lang -and $Lang -ne 'NEEDS CLARIFICATION') { $parts += $Lang }
-    if ($Framework -and $Framework -notin @('NEEDS CLARIFICATION','N/A')) { $parts += $Framework }
-    if (-not $parts) { return '' }
-    return ($parts -join ' + ')
-}
-
-function Get-ProjectStructure { 
-    param(
-        [Parameter(Mandatory=$false)]
-        [string]$ProjectType
-    )
-    if ($ProjectType -match 'web') { return "backend/`nfrontend/`ntests/" } else { return "src/`ntests/" } 
-}
-
-function Get-CommandsForLanguage { 
-    param(
-        [Parameter(Mandatory=$false)]
-        [string]$Lang
-    )
-    switch -Regex ($Lang) {
-        'Python' { return "cd src; pytest; ruff check ." }
-        'Rust' { return "cargo test; cargo clippy" }
-        'JavaScript|TypeScript' { return "npm test; npm run lint" }
-        default { return "# Add commands for $Lang" }
+    if (-not (Test-Path $Path)) { return '' }
+    $text = Get-Content $Path -Raw
+    $pattern = "(?ms)^## $([regex]::Escape($Heading))\s*(.*?)(?=^## |\Z)"
+    $match = [regex]::Match($text, $pattern)
+    if ($match.Success) {
+        return $match.Groups[1].Value.Trim()
     }
+    return ''
 }
 
-function Get-LanguageConventions { 
+function Summarize-Bullets {
     param(
-        [Parameter(Mandatory=$false)]
-        [string]$Lang
+        [string]$Section,
+        [int]$Limit = 3
     )
-    if ($Lang) { "${Lang}: Follow standard conventions" } else { 'General: Follow standard conventions' } 
+    if ([string]::IsNullOrWhiteSpace($Section)) { return '' }
+    $lines = $Section -split "`r?`n" | Where-Object { $_ -match '^-\s*' } | ForEach-Object { $_ -replace '^-\s*', '' }
+    $result = $lines | Where-Object { $_ } | Select-Object -First $Limit
+    if (-not $result) { return '' }
+    return ($result -join ' / ')
 }
 
-function New-AgentFile {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$TargetFile,
-        [Parameter(Mandatory=$true)]
-        [string]$ProjectName,
-        [Parameter(Mandatory=$true)]
-        [datetime]$Date
-    )
-    if (-not (Test-Path $TEMPLATE_FILE)) { Write-Err "Template not found at $TEMPLATE_FILE"; return $false }
-    $temp = New-TemporaryFile
-    Copy-Item -LiteralPath $TEMPLATE_FILE -Destination $temp -Force
+$SummarySection  = Get-PlanSection 'Summary' $PlanPath
+$SiteSection     = Get-PlanSection 'Site Conditions & Research Highlights' $PlanPath
+$PlantingSection = Get-PlanSection 'Planting Schema Snapshot' $PlanPath
+$SafetySection   = Get-PlanSection 'Risk & Contingency Planning' $PlanPath
+$OpenSection     = Get-PlanSection 'Open Questions & Follow-Ups' $PlanPath
 
-    $projectStructure = Get-ProjectStructure -ProjectType $NEW_PROJECT_TYPE
-    $commands = Get-CommandsForLanguage -Lang $NEW_LANG
-    $languageConventions = Get-LanguageConventions -Lang $NEW_LANG
+$SummaryLine = ($SummarySection -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 1)
+if (-not $SummaryLine) { $SummaryLine = 'Refer to plan summary.' }
 
-    $escaped_lang = $NEW_LANG
-    $escaped_framework = $NEW_FRAMEWORK
-    $escaped_branch = $CURRENT_BRANCH
+$SiteHighlights      = Summarize-Bullets $SiteSection
+$PlantingHighlights  = Summarize-Bullets $PlantingSection
+$SafetyHighlights    = Summarize-Bullets $SafetySection
+$OpenHighlights      = Summarize-Bullets $OpenSection
 
-    $content = Get-Content -LiteralPath $temp -Raw -Encoding utf8
-    $content = $content -replace '\[PROJECT NAME\]',$ProjectName
-    $content = $content -replace '\[DATE\]',$Date.ToString('yyyy-MM-dd')
-    
-    # Build the technology stack string safely
-    $techStackForTemplate = ""
-    if ($escaped_lang -and $escaped_framework) {
-        $techStackForTemplate = "- $escaped_lang + $escaped_framework ($escaped_branch)"
-    } elseif ($escaped_lang) {
-        $techStackForTemplate = "- $escaped_lang ($escaped_branch)"
-    } elseif ($escaped_framework) {
-        $techStackForTemplate = "- $escaped_framework ($escaped_branch)"
-    }
-    
-    $content = $content -replace '\[EXTRACTED FROM ALL PLAN.MD FILES\]',$techStackForTemplate
-    # For project structure we manually embed (keep newlines)
-    $escapedStructure = [Regex]::Escape($projectStructure)
-    $content = $content -replace '\[ACTUAL STRUCTURE FROM PLANS\]',$escapedStructure
-    # Replace escaped newlines placeholder after all replacements
-    $content = $content -replace '\[ONLY COMMANDS FOR ACTIVE TECHNOLOGIES\]',$commands
-    $content = $content -replace '\[LANGUAGE-SPECIFIC, ONLY FOR LANGUAGES IN USE\]',$languageConventions
-    
-    # Build the recent changes string safely
-    $recentChangesForTemplate = ""
-    if ($escaped_lang -and $escaped_framework) {
-        $recentChangesForTemplate = "- ${escaped_branch}: Added ${escaped_lang} + ${escaped_framework}"
-    } elseif ($escaped_lang) {
-        $recentChangesForTemplate = "- ${escaped_branch}: Added ${escaped_lang}"
-    } elseif ($escaped_framework) {
-        $recentChangesForTemplate = "- ${escaped_branch}: Added ${escaped_framework}"
-    }
-    
-    $content = $content -replace '\[LAST 3 FEATURES AND WHAT THEY ADDED\]',$recentChangesForTemplate
-    # Convert literal \n sequences introduced by Escape to real newlines
-    $content = $content -replace '\\n',[Environment]::NewLine
+if ([string]::IsNullOrWhiteSpace($PlantingHighlights)) { $PlantingHighlights = 'Review planting-schema.md for full details' }
+if ([string]::IsNullOrWhiteSpace($SiteHighlights)) { $SiteHighlights = 'Consult plan.md for site specifics' }
+if ([string]::IsNullOrWhiteSpace($SafetyHighlights)) { $SafetyHighlights = 'Review plan.md risk section' }
+if ([string]::IsNullOrWhiteSpace($OpenHighlights)) { $OpenHighlights = 'No open questions recorded' }
 
-    $parent = Split-Path -Parent $TargetFile
-    if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent | Out-Null }
-    Set-Content -LiteralPath $TargetFile -Value $content -NoNewline -Encoding utf8
-    Remove-Item $temp -Force
-    return $true
-}
-
-function Update-ExistingAgentFile {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$TargetFile,
-        [Parameter(Mandatory=$true)]
-        [datetime]$Date
-    )
-    if (-not (Test-Path $TargetFile)) { return (New-AgentFile -TargetFile $TargetFile -ProjectName (Split-Path $REPO_ROOT -Leaf) -Date $Date) }
-
-    $techStack = Format-TechnologyStack -Lang $NEW_LANG -Framework $NEW_FRAMEWORK
-    $newTechEntries = @()
-    if ($techStack) {
-        $escapedTechStack = [Regex]::Escape($techStack)
-        if (-not (Select-String -Pattern $escapedTechStack -Path $TargetFile -Quiet)) { 
-            $newTechEntries += "- $techStack ($CURRENT_BRANCH)" 
+if (Test-Path $ToolsPath) {
+    $toolLines = @()
+    foreach ($line in Get-Content $ToolsPath) {
+        if ($line -notmatch '^\|' -or $line -match 'Tool / Resource' -or $line -match '^\|\s*-') { continue }
+        $cells = ($line.Trim('|') -split '\|') | ForEach-Object { $_.Trim() }
+        if ($cells.Count -ge 3) {
+            $toolLines += "{0} ({1}, {2})" -f $cells[0], $cells[1], $cells[2]
+            if ($toolLines.Count -ge 3) { break }
         }
     }
-    if ($NEW_DB -and $NEW_DB -notin @('N/A','NEEDS CLARIFICATION')) {
-        $escapedDB = [Regex]::Escape($NEW_DB)
-        if (-not (Select-String -Pattern $escapedDB -Path $TargetFile -Quiet)) { 
-            $newTechEntries += "- $NEW_DB ($CURRENT_BRANCH)" 
-        }
-    }
-    $newChangeEntry = ''
-    if ($techStack) { $newChangeEntry = "- ${CURRENT_BRANCH}: Added ${techStack}" }
-    elseif ($NEW_DB -and $NEW_DB -notin @('N/A','NEEDS CLARIFICATION')) { $newChangeEntry = "- ${CURRENT_BRANCH}: Added ${NEW_DB}" }
-
-    $lines = Get-Content -LiteralPath $TargetFile -Encoding utf8
-    $output = New-Object System.Collections.Generic.List[string]
-    $inTech = $false; $inChanges = $false; $techAdded = $false; $changeAdded = $false; $existingChanges = 0
-
-    for ($i=0; $i -lt $lines.Count; $i++) {
-        $line = $lines[$i]
-        if ($line -eq '## Active Technologies') {
-            $output.Add($line)
-            $inTech = $true
-            continue
-        }
-        if ($inTech -and $line -match '^##\s') {
-            if (-not $techAdded -and $newTechEntries.Count -gt 0) { $newTechEntries | ForEach-Object { $output.Add($_) }; $techAdded = $true }
-            $output.Add($line); $inTech = $false; continue
-        }
-        if ($inTech -and [string]::IsNullOrWhiteSpace($line)) {
-            if (-not $techAdded -and $newTechEntries.Count -gt 0) { $newTechEntries | ForEach-Object { $output.Add($_) }; $techAdded = $true }
-            $output.Add($line); continue
-        }
-        if ($line -eq '## Recent Changes') {
-            $output.Add($line)
-            if ($newChangeEntry) { $output.Add($newChangeEntry); $changeAdded = $true }
-            $inChanges = $true
-            continue
-        }
-        if ($inChanges -and $line -match '^##\s') { $output.Add($line); $inChanges = $false; continue }
-        if ($inChanges -and $line -match '^- ') {
-            if ($existingChanges -lt 2) { $output.Add($line); $existingChanges++ }
-            continue
-        }
-        if ($line -match '\*\*Last updated\*\*: .*\d{4}-\d{2}-\d{2}') {
-            $output.Add(($line -replace '\d{4}-\d{2}-\d{2}',$Date.ToString('yyyy-MM-dd')))
-            continue
-        }
-        $output.Add($line)
-    }
-
-    # Post-loop check: if we're still in the Active Technologies section and haven't added new entries
-    if ($inTech -and -not $techAdded -and $newTechEntries.Count -gt 0) {
-        $newTechEntries | ForEach-Object { $output.Add($_) }
-    }
-
-    Set-Content -LiteralPath $TargetFile -Value ($output -join [Environment]::NewLine) -Encoding utf8
-    return $true
+    $ToolSummary = if ($toolLines) { $toolLines -join ' / ' } else { 'Review tools.md for availability' }
+} else {
+    $ToolSummary = 'Tool inventory pending'
 }
 
-function Update-AgentFile {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$TargetFile,
-        [Parameter(Mandatory=$true)]
-        [string]$AgentName
-    )
-    if (-not $TargetFile -or -not $AgentName) { Write-Err 'Update-AgentFile requires TargetFile and AgentName'; return $false }
-    Write-Info "Updating $AgentName context file: $TargetFile"
-    $projectName = Split-Path $REPO_ROOT -Leaf
-    $date = Get-Date
+if (Test-Path $PlantingPath) {
+    $plantText = Get-Content $PlantingPath -Raw
+    $zoneMatches = [regex]::Matches($plantText, '- \*\*(.+?)\*\*')
+    $zones = for ($i=0; $i -lt [Math]::Min(3, $zoneMatches.Count); $i++) { $zoneMatches[$i].Groups[1].Value.Trim() }
+    $ZoneSummary = if ($zones) { $zones -join ', ' } else { 'See planting-schema.md' }
+} else {
+    $ZoneSummary = 'See planting-schema.md'
+}
 
-    $dir = Split-Path -Parent $TargetFile
+if (Test-Path $SeasonalPath) {
+    $months = @()
+    foreach ($line in Get-Content $SeasonalPath) {
+        if ($line -notmatch '^\|' -or $line -match 'Month/Window' -or $line -match '^\|\s*-') { continue }
+        $month = ($line.Trim('|') -split '\|')[0].Trim()
+        if ($month) { $months += $month }
+        if ($months.Count -ge 2) { break }
+    }
+    switch ($months.Count) {
+        0 { $SeasonWindow = 'See seasonal-calendar.md' }
+        1 { $SeasonWindow = $months[0] }
+        default { $SeasonWindow = "{0} – {1}" -f $months[0], $months[-1] }
+    }
+} else {
+    $SeasonWindow = 'See seasonal-calendar.md'
+}
+
+function Get-ManualBlock {
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return '' }
+    $buffer = New-Object System.Collections.Generic.List[string]
+    $inside = $false
+    foreach ($line in Get-Content $Path) {
+        if ($line -match '<!-- MANUAL ADDITIONS START -->') { $inside = $true; continue }
+        if ($line -match '<!-- MANUAL ADDITIONS END -->') { $inside = $false; continue }
+        if ($inside) { $buffer.Add($line) }
+    }
+    return ($buffer -join "`n")
+}
+
+function Write-AgentFile {
+    param([string]$Path)
+    $dir = Split-Path $Path -Parent
     if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+    if (-not (Test-Path $Path) -and (Test-Path $TemplateFile)) { Copy-Item $TemplateFile $Path }
+    $manual = Get-ManualBlock $Path
+    $content = @"
+# $GardenTitle Stewardship Brief
+Auto-generated from current garden plans. Last updated: $DateStamp
 
-    if (-not (Test-Path $TargetFile)) {
-        if (New-AgentFile -TargetFile $TargetFile -ProjectName $projectName -Date $date) { Write-Success "Created new $AgentName context file" } else { Write-Err 'Failed to create new agent file'; return $false }
-    } else {
-        try {
-            if (Update-ExistingAgentFile -TargetFile $TargetFile -Date $date) { Write-Success "Updated existing $AgentName context file" } else { Write-Err 'Failed to update agent file'; return $false }
-        } catch {
-            Write-Err "Cannot access or update existing file: $TargetFile. $_"
-            return $false
+## Garden Snapshot
+- Highlights: $SummaryLine
+- Zones in focus: $ZoneSummary
+- Season window: $SeasonWindow
+
+## Planting & Care Priorities
+- $PlantingHighlights
+- $SiteHighlights
+
+## Tool Inventory Notes
+- $ToolSummary
+
+## Safety & Stewardship Guidelines
+- $SafetyHighlights
+
+## Recent Changes
+- $OpenHighlights
+
+<!-- MANUAL ADDITIONS START -->
+$manual
+<!-- MANUAL ADDITIONS END -->
+"@
+    Set-Content -Path $Path -Value $content
+}
+
+function Update-AllAgents {
+    $found = $false
+    foreach ($entry in @(
+        @{Path=$ClaudeFile; Label='Claude'},
+        @{Path=$GeminiFile; Label='Gemini'},
+        @{Path=$CopilotFile; Label='Copilot'},
+        @{Path=$CursorFile; Label='Cursor'},
+        @{Path=$QwenFile; Label='Qwen'},
+        @{Path=$AgentsFile; Label='Agent summary'},
+        @{Path=$WindsurfFile; Label='Windsurf'},
+        @{Path=$KilocodeFile; Label='Kilo Code'},
+        @{Path=$AuggieFile; Label='Auggie'},
+        @{Path=$RooFile; Label='Roo'},
+        @{Path=$CodeBuddyFile; Label='CodeBuddy'},
+        @{Path=$QFile; Label='Amazon Q'}
+    )) {
+        if (Test-Path $entry.Path) {
+            Write-AgentFile $entry.Path
+            Write-Host "Updated $($entry.Label) context at $($entry.Path)"
+            $found = $true
         }
     }
-    return $true
+    if (-not $found) {
+        Write-AgentFile $ClaudeFile
+        Write-Host "Created default Claude context at $ClaudeFile"
+    }
 }
 
 function Update-SpecificAgent {
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$Type
-    )
+    param([string]$Type)
     switch ($Type) {
-        'claude'   { Update-AgentFile -TargetFile $CLAUDE_FILE   -AgentName 'Claude Code' }
-        'gemini'   { Update-AgentFile -TargetFile $GEMINI_FILE   -AgentName 'Gemini CLI' }
-        'copilot'  { Update-AgentFile -TargetFile $COPILOT_FILE  -AgentName 'GitHub Copilot' }
-        'cursor-agent' { Update-AgentFile -TargetFile $CURSOR_FILE   -AgentName 'Cursor IDE' }
-        'qwen'     { Update-AgentFile -TargetFile $QWEN_FILE     -AgentName 'Qwen Code' }
-        'opencode' { Update-AgentFile -TargetFile $AGENTS_FILE   -AgentName 'opencode' }
-        'codex'    { Update-AgentFile -TargetFile $AGENTS_FILE   -AgentName 'Codex CLI' }
-        'windsurf' { Update-AgentFile -TargetFile $WINDSURF_FILE -AgentName 'Windsurf' }
-        'kilocode' { Update-AgentFile -TargetFile $KILOCODE_FILE -AgentName 'Kilo Code' }
-        'auggie'   { Update-AgentFile -TargetFile $AUGGIE_FILE   -AgentName 'Auggie CLI' }
-        'roo'      { Update-AgentFile -TargetFile $ROO_FILE      -AgentName 'Roo Code' }
-        'codebuddy' { Update-AgentFile -TargetFile $CODEBUDDY_FILE -AgentName 'CodeBuddy CLI' }
-        'q'        { Update-AgentFile -TargetFile $Q_FILE        -AgentName 'Amazon Q Developer CLI' }
-        default { Write-Err "Unknown agent type '$Type'"; Write-Err 'Expected: claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|kilocode|auggie|roo|codebuddy|q'; return $false }
+        'claude'        { Write-AgentFile $ClaudeFile }
+        'gemini'        { Write-AgentFile $GeminiFile }
+        'copilot'       { Write-AgentFile $CopilotFile }
+        'cursor-agent'  { Write-AgentFile $CursorFile }
+        'qwen'          { Write-AgentFile $QwenFile }
+        'opencode'      { Write-AgentFile $AgentsFile }
+        'codex'         { Write-AgentFile $AgentsFile }
+        'windsurf'      { Write-AgentFile $WindsurfFile }
+        'kilocode'      { Write-AgentFile $KilocodeFile }
+        'auggie'        { Write-AgentFile $AuggieFile }
+        'roo'           { Write-AgentFile $RooFile }
+        'codebuddy'     { Write-AgentFile $CodeBuddyFile }
+        'q'             { Write-AgentFile $QFile }
+        default         { throw "Unknown agent type '$Type'" }
     }
+    Write-Host "Updated $Type context"
 }
 
-function Update-AllExistingAgents {
-    $found = $false
-    $ok = $true
-    if (Test-Path $CLAUDE_FILE)   { if (-not (Update-AgentFile -TargetFile $CLAUDE_FILE   -AgentName 'Claude Code')) { $ok = $false }; $found = $true }
-    if (Test-Path $GEMINI_FILE)   { if (-not (Update-AgentFile -TargetFile $GEMINI_FILE   -AgentName 'Gemini CLI')) { $ok = $false }; $found = $true }
-    if (Test-Path $COPILOT_FILE)  { if (-not (Update-AgentFile -TargetFile $COPILOT_FILE  -AgentName 'GitHub Copilot')) { $ok = $false }; $found = $true }
-    if (Test-Path $CURSOR_FILE)   { if (-not (Update-AgentFile -TargetFile $CURSOR_FILE   -AgentName 'Cursor IDE')) { $ok = $false }; $found = $true }
-    if (Test-Path $QWEN_FILE)     { if (-not (Update-AgentFile -TargetFile $QWEN_FILE     -AgentName 'Qwen Code')) { $ok = $false }; $found = $true }
-    if (Test-Path $AGENTS_FILE)   { if (-not (Update-AgentFile -TargetFile $AGENTS_FILE   -AgentName 'Codex/opencode')) { $ok = $false }; $found = $true }
-    if (Test-Path $WINDSURF_FILE) { if (-not (Update-AgentFile -TargetFile $WINDSURF_FILE -AgentName 'Windsurf')) { $ok = $false }; $found = $true }
-    if (Test-Path $KILOCODE_FILE) { if (-not (Update-AgentFile -TargetFile $KILOCODE_FILE -AgentName 'Kilo Code')) { $ok = $false }; $found = $true }
-    if (Test-Path $AUGGIE_FILE)   { if (-not (Update-AgentFile -TargetFile $AUGGIE_FILE   -AgentName 'Auggie CLI')) { $ok = $false }; $found = $true }
-    if (Test-Path $ROO_FILE)      { if (-not (Update-AgentFile -TargetFile $ROO_FILE      -AgentName 'Roo Code')) { $ok = $false }; $found = $true }
-    if (Test-Path $CODEBUDDY_FILE) { if (-not (Update-AgentFile -TargetFile $CODEBUDDY_FILE -AgentName 'CodeBuddy CLI')) { $ok = $false }; $found = $true }
-    if (Test-Path $Q_FILE)        { if (-not (Update-AgentFile -TargetFile $Q_FILE        -AgentName 'Amazon Q Developer CLI')) { $ok = $false }; $found = $true }
-    if (-not $found) {
-        Write-Info 'No existing agent files found, creating default Claude file...'
-        if (-not (Update-AgentFile -TargetFile $CLAUDE_FILE -AgentName 'Claude Code')) { $ok = $false }
-    }
-    return $ok
+if ([string]::IsNullOrWhiteSpace($AgentType)) {
+    Update-AllAgents
+} else {
+    Update-SpecificAgent $AgentType
 }
-
-function Print-Summary {
-    Write-Host ''
-    Write-Info 'Summary of changes:'
-    if ($NEW_LANG) { Write-Host "  - Added language: $NEW_LANG" }
-    if ($NEW_FRAMEWORK) { Write-Host "  - Added framework: $NEW_FRAMEWORK" }
-    if ($NEW_DB -and $NEW_DB -ne 'N/A') { Write-Host "  - Added database: $NEW_DB" }
-    Write-Host ''
-    Write-Info 'Usage: ./update-agent-context.ps1 [-AgentType claude|gemini|copilot|cursor-agent|qwen|opencode|codex|windsurf|kilocode|auggie|roo|codebuddy|q]'
-}
-
-function Main {
-    Validate-Environment
-    Write-Info "=== Updating agent context files for feature $CURRENT_BRANCH ==="
-    if (-not (Parse-PlanData -PlanFile $NEW_PLAN)) { Write-Err 'Failed to parse plan data'; exit 1 }
-    $success = $true
-    if ($AgentType) {
-        Write-Info "Updating specific agent: $AgentType"
-        if (-not (Update-SpecificAgent -Type $AgentType)) { $success = $false }
-    }
-    else {
-        Write-Info 'No agent specified, updating all existing agent files...'
-        if (-not (Update-AllExistingAgents)) { $success = $false }
-    }
-    Print-Summary
-    if ($success) { Write-Success 'Agent context update completed successfully'; exit 0 } else { Write-Err 'Agent context update completed with errors'; exit 1 }
-}
-
-Main
 

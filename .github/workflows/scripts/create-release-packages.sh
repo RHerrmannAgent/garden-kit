@@ -130,8 +130,16 @@ build_variant() {
     esac
   fi
   
-  [[ -d templates ]] && { mkdir -p "$SPEC_DIR/templates"; find templates -type f -not -path "templates/commands/*" -not -name "vscode-settings.json" -exec cp --parents {} "$SPEC_DIR"/ \; ; echo "Copied templates -> .gardify/templates"; }
-  
+  if [[ -d templates ]]; then
+    mkdir -p "$SPEC_DIR/templates"
+    find templates -type f -not -path "templates/commands/*" -not -name "vscode-settings.json" -exec cp --parents {} "$SPEC_DIR"/ \;
+    echo "Copied templates -> .gardify/templates"
+  fi
+  if [[ -d specs/000-sample-garden ]]; then
+    mkdir -p "$SPEC_DIR/specs"
+    cp -r specs/000-sample-garden "$SPEC_DIR/specs/"
+    echo "Copied sample garden -> .gardify/specs/000-sample-garden"
+  fi
   # NOTE: We substitute {ARGS} internally. Outward tokens differ intentionally:
   #   * Markdown/prompt (claude, copilot, cursor-agent, opencode): $ARGUMENTS
   #   * TOML (gemini, qwen): {{args}}

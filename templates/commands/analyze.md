@@ -1,188 +1,114 @@
 ---
-description: Perform a non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md after task generation.
+- **Monthly Plan Drift**: Tasks ignoring commitments or responsible parties noted in `monthly-care-plan.md`.  
+- **Legacy Plant Conflicts**: Tasks that remove or disturb specimens marked keep/relocate in `existing-plant-inventory.md`.  
+description: Review garden artefacts (`spec.md`, `plan.md`, `tasks.md`) after task generation to surface inconsistencies before implementation.
 scripts:
   sh: scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
   ps: scripts/powershell/check-prerequisites.ps1 -Json -RequireTasks -IncludeTasks
 ---
 
-## User Input
+## Gardener Input
 
 ```text
 $ARGUMENTS
 ```
 
-You **MUST** consider the user input before proceeding (if not empty).
+Incorporate any focus areas the gardener wants inspected (e.g., seasonal coverage, tool conflicts).
+
+---
 
 ## Goal
 
-Identify inconsistencies, duplications, ambiguities, and underspecified items across the three core artifacts (`spec.md`, `plan.md`, `tasks.md`) before implementation. This command MUST run only after `/tasks` has successfully produced a complete `tasks.md`.
+Run a **read-only** analysis that checks whether the garden vision, plan, and task schedule agree with each other and with the constitution. Report findings; do not edit files.
 
-## Operating Constraints
-
-**STRICTLY READ-ONLY**: Do **not** modify any files. Output a structured analysis report. Offer an optional remediation plan (user must explicitly approve before any follow-up editing commands would be invoked manually).
-
-**Constitution Authority**: The project constitution (`/memory/constitution.md`) is **non-negotiable** within this analysis scope. Constitution conflicts are automatically CRITICAL and require adjustment of the spec, plan, or tasks—not dilution, reinterpretation, or silent ignoring of the principle. If a principle itself needs to change, that must occur in a separate, explicit constitution update outside `/analyze`.
+---
 
 ## Execution Steps
 
-### 1. Initialize Analysis Context
+### 1. Initialise Context
 
-Run `{SCRIPT}` once from repo root and parse JSON for FEATURE_DIR and AVAILABLE_DOCS. Derive absolute paths:
+- Run `{SCRIPT}` from the repository root to gather `FEATURE_DIR` and `AVAILABLE_DOCS`.  
+- Verify `spec.md`, `plan.md`, and `tasks.md` exist. Abort with guidance if any file is missing.  
+- Use absolute paths at all times.
 
-- SPEC = FEATURE_DIR/spec.md
-- PLAN = FEATURE_DIR/plan.md
-- TASKS = FEATURE_DIR/tasks.md
+### 2. Load Artefacts (minimal necessary context)
 
-Abort with an error message if any required file is missing (instruct the user to run missing prerequisite command).
-For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
+- **From `spec.md`**: Garden scenarios, edge conditions, site/planting/stewardship requirements, success criteria.  
+- **From `plan.md`**: Site conditions, tool inventory summary, phases, risks, observation loops.  
+- **From `existing-plant-inventory.md`** (if available): Legacy specimens, root-zone constraints, keep/relocate/remove decisions.  
+- **From `tasks.md`**: Task IDs, descriptions, phase labels, `[P]` markers, referenced locations/tools.  
+- **From `tools.md`** (if available): Tool quantities and notes.  
+- **From `seasonal-calendar.md` / `monthly-care-plan.md`** (if available): Timing cues, responsible parties, contingency notes.  
+- **From `/memory/constitution.md`**: Principles and mandates that must be upheld.
 
-### 2. Load Artifacts (Progressive Disclosure)
+### 3. Build Comparative Inventories
 
-Load only the minimal necessary context from each artifact:
+- **Requirement Index**: Catalogue site, planting, and stewardship requirements with unique slugs.  
+- **Scenario Index**: Map each garden scenario (priority, seasonal markers).  
+- **Task Coverage Map**: Link tasks to requirements/scenarios based on keywords, zones, and tool references.  
+- **Tool Usage Map**: Track which tasks require each tool.
 
-**From spec.md:**
+### 4. Detection Passes
 
-- Overview/Context
-- Functional Requirements
-- Non-Functional Requirements
-- User Stories
-- Edge Cases (if present)
+Limit to the most impactful observations (max 50 findings; summarise overflow).
 
-**From plan.md:**
+- **Duplication**: Scenarios or requirements describing the same outcome with different wording.  
+- **Ambiguity**: Vague measures (“lush”, “adequate”) without quantification; unresolved `[NEEDS CLARIFICATION]` markers; placeholders like TODO/???  
+- **Coverage Gaps**: Requirements or scenarios that lack supporting tasks; tasks that do not map to any requirement/scenario.  
+- **Tool Conflicts**: Multiple tasks competing for a single tool without sequencing guidance; tasks requiring tools absent from `tools.md`.  
+- **Legacy Plant Conflicts**: Tasks that remove or disturb specimens marked keep/relocate in `existing-plant-inventory.md`.  
+- **Constitution Conflicts**: Any plan or task violating a MUST principle (e.g., ignoring water restrictions, safety mandates).  
+- **Seasonal Tension**: Tasks scheduled out of sync with seasonal calendar cues; scenarios lacking coverage in certain seasons.  
+- **Risk Misalignment**: Risks in `plan.md` without mitigation tasks; tasks referencing mitigations absent from plan.
+- **Monthly Plan Drift**: Tasks ignoring commitments or responsible parties noted in `monthly-care-plan.md`.  
 
-- Architecture/stack choices
-- Data Model references
-- Phases
-- Technical constraints
+### 5. Severity Guide
 
-**From tasks.md:**
+- **CRITICAL**: Breaches constitution, missing tasks for high-priority scenarios, or required tools absent.  
+- **HIGH**: Conflicting guidance between spec/plan/tasks, ambiguous safety direction, or unsequenced tool conflicts.  
+- **MEDIUM**: Terminology drift, weak success measures, seasonal mismatches.  
+- **LOW**: Stylistic improvements, minor redundancies.
 
-- Task IDs
-- Descriptions
-- Phase grouping
-- Parallel markers [P]
-- Referenced file paths
+### 6. Output Format
 
-**From constitution:**
+Produce a Markdown report (no file writes) with:
 
-- Load `/memory/constitution.md` for principle validation
+1. **Findings Table**
+   ```
+   | ID | Category | Severity | Location(s) | Summary | Recommendation |
+   |----|----------|----------|-------------|---------|----------------|
+   | G1 | Coverage | HIGH | spec.md:120, tasks.md:88 | Scenario 1 lacks maintenance tasks | Add stewardship tasks in Phase 5 |
+   ```
 
-### 3. Build Semantic Models
+2. **Coverage Summary**
+   ```
+   | Requirement Key | Covered by Tasks? | Task IDs | Notes |
+   ```
 
-Create internal representations (do not include raw artifacts in output):
+3. **Tool Usage Summary**
+   - Highlight tools missing from inventory yet required by tasks.  
+   - Flag simultaneous use conflicts.
 
-- **Requirements inventory**: Each functional + non-functional requirement with a stable key (derive slug based on imperative phrase; e.g., "User can upload file" → `user-can-upload-file`)
-- **User story/action inventory**: Discrete user actions with acceptance criteria
-- **Task coverage mapping**: Map each task to one or more requirements or stories (inference by keyword / explicit reference patterns like IDs or key phrases)
-- **Constitution rule set**: Extract principle names and MUST/SHOULD normative statements
+4. **Constitution Alignment Issues**
+   - List principle violations or areas needing clarification.
 
-### 4. Detection Passes (Token-Efficient Analysis)
+5. **Metrics**
+   - Total scenarios  
+   - Total requirements (site/planting/stewardship)  
+   - Total tasks  
+   - Coverage percentage  
+   - Ambiguity count  
+   - Tool conflicts count  
+   - Critical issues count
 
-Focus on high-signal findings. Limit to 50 findings total; aggregate remainder in overflow summary.
+6. **Next Actions Block**
+   - Recommend halting `/gardenkit.implement` if CRITICAL issues exist.  
+   - Otherwise, list improvements or confirmations that implementation can proceed.
 
-#### A. Duplication Detection
+---
 
-- Identify near-duplicate requirements
-- Mark lower-quality phrasing for consolidation
+## Operating Constraints
 
-#### B. Ambiguity Detection
-
-- Flag vague adjectives (fast, scalable, secure, intuitive, robust) lacking measurable criteria
-- Flag unresolved placeholders (TODO, TKTK, ???, `<placeholder>`, etc.)
-
-#### C. Underspecification
-
-- Requirements with verbs but missing object or measurable outcome
-- User stories missing acceptance criteria alignment
-- Tasks referencing files or components not defined in spec/plan
-
-#### D. Constitution Alignment
-
-- Any requirement or plan element conflicting with a MUST principle
-- Missing mandated sections or quality gates from constitution
-
-#### E. Coverage Gaps
-
-- Requirements with zero associated tasks
-- Tasks with no mapped requirement/story
-- Non-functional requirements not reflected in tasks (e.g., performance, security)
-
-#### F. Inconsistency
-
-- Terminology drift (same concept named differently across files)
-- Data entities referenced in plan but absent in spec (or vice versa)
-- Task ordering contradictions (e.g., integration tasks before foundational setup tasks without dependency note)
-- Conflicting requirements (e.g., one requires Next.js while other specifies Vue)
-
-### 5. Severity Assignment
-
-Use this heuristic to prioritize findings:
-
-- **CRITICAL**: Violates constitution MUST, missing core spec artifact, or requirement with zero coverage that blocks baseline functionality
-- **HIGH**: Duplicate or conflicting requirement, ambiguous security/performance attribute, untestable acceptance criterion
-- **MEDIUM**: Terminology drift, missing non-functional task coverage, underspecified edge case
-- **LOW**: Style/wording improvements, minor redundancy not affecting execution order
-
-### 6. Produce Compact Analysis Report
-
-Output a Markdown report (no file writes) with the following structure:
-
-## Specification Analysis Report
-
-| ID | Category | Severity | Location(s) | Summary | Recommendation |
-|----|----------|----------|-------------|---------|----------------|
-| A1 | Duplication | HIGH | spec.md:L120-134 | Two similar requirements ... | Merge phrasing; keep clearer version |
-
-(Add one row per finding; generate stable IDs prefixed by category initial.)
-
-**Coverage Summary Table:**
-
-| Requirement Key | Has Task? | Task IDs | Notes |
-|-----------------|-----------|----------|-------|
-
-**Constitution Alignment Issues:** (if any)
-
-**Unmapped Tasks:** (if any)
-
-**Metrics:**
-
-- Total Requirements
-- Total Tasks
-- Coverage % (requirements with >=1 task)
-- Ambiguity Count
-- Duplication Count
-- Critical Issues Count
-
-### 7. Provide Next Actions
-
-At end of report, output a concise Next Actions block:
-
-- If CRITICAL issues exist: Recommend resolving before `/implement`
-- If only LOW/MEDIUM: User may proceed, but provide improvement suggestions
-- Provide explicit command suggestions: e.g., "Run /specify with refinement", "Run /plan to adjust architecture", "Manually edit tasks.md to add coverage for 'performance-metrics'"
-
-### 8. Offer Remediation
-
-Ask the user: "Would you like me to suggest concrete remediation edits for the top N issues?" (Do NOT apply them automatically.)
-
-## Operating Principles
-
-### Context Efficiency
-
-- **Minimal high-signal tokens**: Focus on actionable findings, not exhaustive documentation
-- **Progressive disclosure**: Load artifacts incrementally; don't dump all content into analysis
-- **Token-efficient output**: Limit findings table to 50 rows; summarize overflow
-- **Deterministic results**: Rerunning without changes should produce consistent IDs and counts
-
-### Analysis Guidelines
-
-- **NEVER modify files** (this is read-only analysis)
-- **NEVER hallucinate missing sections** (if absent, report them accurately)
-- **Prioritize constitution violations** (these are always CRITICAL)
-- **Use examples over exhaustive rules** (cite specific instances, not generic patterns)
-- **Report zero issues gracefully** (emit success report with coverage statistics)
-
-## Context
-
-{ARGS}
-
+- Do **not** modify any files.  
+- Respect the constitution’s authority. If principles need revision, suggest running `/gardenkit.constitution`.  
+- Keep analysis concise and gardener-friendly.

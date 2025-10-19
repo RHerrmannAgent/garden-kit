@@ -7,6 +7,20 @@ All notable changes to the gardify CLI and templates are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Sample pollinator kitchen garden project demonstrating new templates and seasonal artefacts.
+- Templates for existing plant inventories and monthly care plans, now part of the planning workflow.
+
+### Changed
+
+- Rethemed documentation, templates, and CLI messaging for garden planning.
+- Introduced mandatory tool inventory workflow across planning and task generation.
+- Updated release packaging to bundle garden templates and sample assets.
+
+
 ## [0.0.20] - 2025-10-14
 
 ### Added
@@ -19,9 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Takes 3-4 most meaningful words from the description
   - **Enforces GitHub's 244-byte branch name limit** with automatic truncation and warnings
   - Examples:
-    - "I want to create user authentication" ‚Üí `001-create-user-authentication`
-    - "Implement OAuth2 integration for API" ‚Üí `001-implement-oauth2-integration-api`
-    - "Fix payment processing bug" ‚Üí `001-fix-payment-processing`
+    - "I want to create user authentication" ‘Â∆ `001-create-user-authentication`
+    - "Implement OAuth2 integration for API" ‘Â∆ `001-implement-oauth2-integration-api`
+    - "Fix payment processing bug" ‘Â∆ `001-fix-payment-processing`
     - Very long descriptions are automatically truncated at word boundaries to stay within limits
   - Designed for AI agents to provide semantic short names while maintaining standalone usability
 

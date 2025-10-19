@@ -10,16 +10,16 @@
 # ]
 # ///
 """
-gardify CLI - Setup tool for gardify projects
+gardify CLI - Setup tool for gardify Gardens
 
 Usage:
-    uvx gardify-cli.py init <project-name>
+    uvx gardify-cli.py init <Garden-name>
     uvx gardify-cli.py init .
     uvx gardify-cli.py init --here
 
 Or install globally:
     uv tool install --from gardify-cli.py gardify-cli
-    gardify init <project-name>
+    gardify init <Garden-name>
     gardify init .
     gardify init --here
 """
@@ -159,7 +159,7 @@ BANNER = """
 ╚══════╝╚═╝     ╚══════╝ ╚═════╝╚═╝╚═╝        ╚═╝   
 """
 
-TAGLINE = "GitHub Garden Kit - Spec-Driven Development Toolkit"
+TAGLINE = "GitHub Garden Kit - Garden-Driven Planning Toolkit"
 class StepTracker:
     """Track and render hierarchical steps without emojis, similar to Claude Code tree output.
     Supports live auto-refresh via an attached refresh callback.
@@ -353,7 +353,7 @@ class BannerGroup(TyperGroup):
 
 app = typer.Typer(
     name="gardify",
-    help="Setup tool for gardify spec-driven development projects",
+    help="Setup tool for gardify garden-driven planning projects",
     add_completion=False,
     invoke_without_command=True,
     cls=BannerGroup,
@@ -450,11 +450,11 @@ def is_git_repo(path: Path = None) -> bool:
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False
 
-def init_git_repo(project_path: Path, quiet: bool = False) -> Tuple[bool, Optional[str]]:
+def init_git_repo(Garden_path: Path, quiet: bool = False) -> Tuple[bool, Optional[str]]:
     """Initialize a git repository in the specified path.
     
     Args:
-        project_path: Path to initialize git repository in
+        Garden_path: Path to initialize git repository in
         quiet: if True suppress console output (tracker handles status)
     
     Returns:
@@ -462,7 +462,7 @@ def init_git_repo(project_path: Path, quiet: bool = False) -> Tuple[bool, Option
     """
     try:
         original_cwd = Path.cwd()
-        os.chdir(project_path)
+        os.chdir(Garden_path)
         if not quiet:
             console.print("[cyan]Initializing git repository...[/cyan]")
         subprocess.run(["git", "init"], check=True, capture_output=True, text=True)
@@ -662,9 +662,9 @@ def download_template_from_github(ai_assistant: str, download_dir: Path, *, scri
     }
     return zip_path, metadata
 
-def download_and_extract_template(project_path: Path, ai_assistant: str, script_type: str, is_current_dir: bool = False, *, verbose: bool = True, tracker: StepTracker | None = None, client: httpx.Client = None, debug: bool = False, github_token: str = None) -> Path:
-    """Download the latest release and extract it to create a new project.
-    Returns project_path. Uses tracker if provided (with keys: fetch, download, extract, cleanup)
+def download_and_extract_template(Garden_path: Path, ai_assistant: str, script_type: str, is_current_dir: bool = False, *, verbose: bool = True, tracker: StepTracker | None = None, client: httpx.Client = None, debug: bool = False, github_token: str = None) -> Path:
+    """Download the latest release and extract it to create a new Garden.
+    Returns Garden_path. Uses tracker if provided (with keys: fetch, download, extract, cleanup)
     """
     current_dir = Path.cwd()
 
@@ -701,7 +701,7 @@ def download_and_extract_template(project_path: Path, ai_assistant: str, script_
 
     try:
         if not is_current_dir:
-            project_path.mkdir(parents=True)
+            Garden_path.mkdir(parents=True)
 
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_contents = zip_ref.namelist()
@@ -733,7 +733,7 @@ def download_and_extract_template(project_path: Path, ai_assistant: str, script_
                             console.print(f"[cyan]Found nested directory structure[/cyan]")
 
                     for item in source_dir.iterdir():
-                        dest_path = project_path / item.name
+                        dest_path = Garden_path / item.name
                         if item.is_dir():
                             if dest_path.exists():
                                 if verbose and not tracker:
@@ -757,26 +757,26 @@ def download_and_extract_template(project_path: Path, ai_assistant: str, script_
                     if verbose and not tracker:
                         console.print(f"[cyan]Template files merged into current directory[/cyan]")
             else:
-                zip_ref.extractall(project_path)
+                zip_ref.extractall(Garden_path)
 
-                extracted_items = list(project_path.iterdir())
+                extracted_items = list(Garden_path.iterdir())
                 if tracker:
                     tracker.start("extracted-summary")
                     tracker.complete("extracted-summary", f"{len(extracted_items)} top-level items")
                 elif verbose:
-                    console.print(f"[cyan]Extracted {len(extracted_items)} items to {project_path}:[/cyan]")
+                    console.print(f"[cyan]Extracted {len(extracted_items)} items to {Garden_path}:[/cyan]")
                     for item in extracted_items:
                         console.print(f"  - {item.name} ({'dir' if item.is_dir() else 'file'})")
 
                 if len(extracted_items) == 1 and extracted_items[0].is_dir():
                     nested_dir = extracted_items[0]
-                    temp_move_dir = project_path.parent / f"{project_path.name}_temp"
+                    temp_move_dir = Garden_path.parent / f"{Garden_path.name}_temp"
 
                     shutil.move(str(nested_dir), str(temp_move_dir))
 
-                    project_path.rmdir()
+                    Garden_path.rmdir()
 
-                    shutil.move(str(temp_move_dir), str(project_path))
+                    shutil.move(str(temp_move_dir), str(Garden_path))
                     if tracker:
                         tracker.add("flatten", "Flatten nested directory")
                         tracker.complete("flatten")
@@ -792,8 +792,8 @@ def download_and_extract_template(project_path: Path, ai_assistant: str, script_
                 if debug:
                     console.print(Panel(str(e), title="Extraction Error", border_style="red"))
 
-        if not is_current_dir and project_path.exists():
-            shutil.rmtree(project_path)
+        if not is_current_dir and Garden_path.exists():
+            shutil.rmtree(Garden_path)
         raise typer.Exit(1)
     else:
         if tracker:
@@ -809,14 +809,14 @@ def download_and_extract_template(project_path: Path, ai_assistant: str, script_
             elif verbose:
                 console.print(f"Cleaned up: {zip_path.name}")
 
-    return project_path
+    return Garden_path
 
 
-def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = None) -> None:
+def ensure_executable_scripts(Garden_path: Path, tracker: StepTracker | None = None) -> None:
     """Ensure POSIX .sh scripts under .gardify/scripts (recursively) have execute bits (no-op on Windows)."""
     if os.name == "nt":
         return  # Windows: skip silently
-    scripts_root = project_path / ".gardify" / "scripts"
+    scripts_root = Garden_path / ".gardify" / "scripts"
     if not scripts_root.is_dir():
         return
     failures: list[str] = []
@@ -858,33 +858,33 @@ def ensure_executable_scripts(project_path: Path, tracker: StepTracker | None = 
 
 @app.command()
 def init(
-    project_name: str = typer.Argument(None, help="Name for your new project directory (optional if using --here, or use '.' for current directory)"),
-    ai_assistant: str = typer.Option(None, "--ai", help="AI assistant to use: claude, gemini, copilot, cursor-agent, qwen, opencode, codex, windsurf, kilocode, auggie, codebuddy, or q"),
+    Garden_name: str = typer.Argument(None, help="Name for your new Garden directory (optional if using --here, or use '.' for current directory)"),
+    ai_assistant: str = typer.Option(None, "--ai", help="AI gardening assistant to use: claude, gemini, copilot, cursor-agent, qwen, opencode, codex, windsurf, kilocode, auggie, codebuddy, or q"),
     script_type: str = typer.Option(None, "--script", help="Script type to use: sh or ps"),
     ignore_agent_tools: bool = typer.Option(False, "--ignore-agent-tools", help="Skip checks for AI agent tools like Claude Code"),
     no_git: bool = typer.Option(False, "--no-git", help="Skip git repository initialization"),
-    here: bool = typer.Option(False, "--here", help="Initialize project in the current directory instead of creating a new one"),
+    here: bool = typer.Option(False, "--here", help="Initialize Garden in the current directory instead of creating a new one"),
     force: bool = typer.Option(False, "--force", help="Force merge/overwrite when using --here (skip confirmation)"),
     skip_tls: bool = typer.Option(False, "--skip-tls", help="Skip SSL/TLS verification (not recommended)"),
     debug: bool = typer.Option(False, "--debug", help="Show verbose diagnostic output for network and extraction failures"),
     github_token: str = typer.Option(None, "--github-token", help="GitHub token to use for API requests (or set GH_TOKEN or GITHUB_TOKEN environment variable)"),
 ):
     """
-    Initialize a new gardify project from the latest template.
+    Initialize a new gardify garden planning workspace from the latest template.
     
     This command will:
     1. Check that required tools are installed (git is optional)
     2. Let you choose your AI assistant
     3. Download the appropriate template from GitHub
-    4. Extract the template to a new project directory or current directory
+    4. Extract the template to a new Garden directory or current directory
     5. Initialize a fresh git repository (if not --no-git and no existing repo)
     6. Optionally set up AI assistant commands
     
     Examples:
-        gardify init my-project
-        gardify init my-project --ai claude
-        gardify init my-project --ai copilot --no-git
-        gardify init --ignore-agent-tools my-project
+        gardify init my-Garden
+        gardify init my-Garden --ai claude
+        gardify init my-Garden --ai copilot --no-git
+        gardify init --ignore-agent-tools my-Garden
         gardify init . --ai claude         # Initialize in current directory
         gardify init .                     # Initialize in current directory (interactive AI selection)
         gardify init --here --ai claude    # Alternative syntax for current directory
@@ -896,23 +896,23 @@ def init(
 
     show_banner()
 
-    if project_name == ".":
+    if Garden_name == ".":
         here = True
-        project_name = None  # Clear project_name to use existing validation logic
+        Garden_name = None  # Clear Garden_name to use existing validation logic
 
-    if here and project_name:
-        console.print("[red]Error:[/red] Cannot gardify both project name and --here flag")
+    if here and Garden_name:
+        console.print("[red]Error:[/red] Cannot gardify both Garden name and --here flag")
         raise typer.Exit(1)
 
-    if not here and not project_name:
-        console.print("[red]Error:[/red] Must gardify either a project name, use '.' for current directory, or use --here flag")
+    if not here and not Garden_name:
+        console.print("[red]Error:[/red] Must gardify either a Garden name, use '.' for current directory, or use --here flag")
         raise typer.Exit(1)
 
     if here:
-        project_name = Path.cwd().name
-        project_path = Path.cwd()
+        Garden_name = Path.cwd().name
+        Garden_path = Path.cwd()
 
-        existing_items = list(project_path.iterdir())
+        existing_items = list(Garden_path.iterdir())
         if existing_items:
             console.print(f"[yellow]Warning:[/yellow] Current directory is not empty ({len(existing_items)} items)")
             console.print("[yellow]Template files will be merged with existing content and may overwrite existing files[/yellow]")
@@ -924,11 +924,11 @@ def init(
                     console.print("[yellow]Operation cancelled[/yellow]")
                     raise typer.Exit(0)
     else:
-        project_path = Path(project_name).resolve()
-        if project_path.exists():
+        Garden_path = Path(Garden_name).resolve()
+        if Garden_path.exists():
             error_panel = Panel(
-                f"Directory '[cyan]{project_name}[/cyan]' already exists\n"
-                "Please choose a different project name or remove the existing directory.",
+                f"Directory '[cyan]{Garden_name}[/cyan]' already exists\n"
+                "Please choose a different Garden name or remove the existing directory.",
                 title="[red]Directory Conflict[/red]",
                 border_style="red",
                 padding=(1, 2)
@@ -940,14 +940,14 @@ def init(
     current_dir = Path.cwd()
 
     setup_lines = [
-        "[cyan]gardify Project Setup[/cyan]",
+        "[cyan]gardify Garden Setup[/cyan]",
         "",
-        f"{'Project':<15} [green]{project_path.name}[/green]",
+        f"{'Garden':<15} [green]{Garden_path.name}[/green]",
         f"{'Working Path':<15} [dim]{current_dir}[/dim]",
     ]
 
     if not here:
-        setup_lines.append(f"{'Target Path':<15} [dim]{project_path}[/dim]")
+        setup_lines.append(f"{'Target Path':<15} [dim]{Garden_path}[/dim]")
 
     console.print(Panel("\n".join(setup_lines), border_style="cyan", padding=(1, 2)))
 
@@ -979,7 +979,7 @@ def init(
                 error_panel = Panel(
                     f"[cyan]{selected_ai}[/cyan] not found\n"
                     f"Install from: [cyan]{install_url}[/cyan]\n"
-                    f"{agent_config['name']} is required to continue with this project type.\n\n"
+                    f"{agent_config['name']} is required to continue with this Garden type.\n\n"
                     "Tip: Use [cyan]--ignore-agent-tools[/cyan] to skip this check",
                     title="[red]Agent Detection Error[/red]",
                     border_style="red",
@@ -1005,7 +1005,7 @@ def init(
     console.print(f"[cyan]Selected AI assistant:[/cyan] {selected_ai}")
     console.print(f"[cyan]Selected script type:[/cyan] {selected_script}")
 
-    tracker = StepTracker("Initialize gardify Project")
+    tracker = StepTracker("Initialize gardify Garden")
 
     sys._gardify_tracker_active = True
 
@@ -1038,16 +1038,16 @@ def init(
             local_ssl_context = ssl_context if verify else False
             local_client = httpx.Client(verify=local_ssl_context)
 
-            download_and_extract_template(project_path, selected_ai, selected_script, here, verbose=False, tracker=tracker, client=local_client, debug=debug, github_token=github_token)
+            download_and_extract_template(Garden_path, selected_ai, selected_script, here, verbose=False, tracker=tracker, client=local_client, debug=debug, github_token=github_token)
 
-            ensure_executable_scripts(project_path, tracker=tracker)
+            ensure_executable_scripts(Garden_path, tracker=tracker)
 
             if not no_git:
                 tracker.start("git")
-                if is_git_repo(project_path):
+                if is_git_repo(Garden_path):
                     tracker.complete("git", "existing repo detected")
                 elif should_init_git:
-                    success, error_msg = init_git_repo(project_path, quiet=True)
+                    success, error_msg = init_git_repo(Garden_path, quiet=True)
                     if success:
                         tracker.complete("git", "initialized")
                     else:
@@ -1058,7 +1058,7 @@ def init(
             else:
                 tracker.skip("git", "--no-git flag")
 
-            tracker.complete("final", "project ready")
+            tracker.complete("final", "Garden ready")
         except Exception as e:
             tracker.error("final", str(e))
             console.print(Panel(f"Initialization failed: {e}", title="Failure", border_style="red"))
@@ -1071,14 +1071,14 @@ def init(
                 _label_width = max(len(k) for k, _ in _env_pairs)
                 env_lines = [f"{k.ljust(_label_width)} → [bright_black]{v}[/bright_black]" for k, v in _env_pairs]
                 console.print(Panel("\n".join(env_lines), title="Debug Environment", border_style="magenta"))
-            if not here and project_path.exists():
-                shutil.rmtree(project_path)
+            if not here and Garden_path.exists():
+                shutil.rmtree(Garden_path)
             raise typer.Exit(1)
         finally:
             pass
 
     console.print(tracker.render())
-    console.print("\n[bold green]Project ready.[/bold green]")
+    console.print("\n[bold green]Garden ready.[/bold green]")
     
     # Show git error details if initialization failed
     if git_error_message:
@@ -1087,7 +1087,7 @@ def init(
             f"[yellow]Warning:[/yellow] Git repository initialization failed\n\n"
             f"{git_error_message}\n\n"
             f"[dim]You can initialize git manually later with:[/dim]\n"
-            f"[cyan]cd {project_path if not here else '.'}[/cyan]\n"
+            f"[cyan]cd {Garden_path if not here else '.'}[/cyan]\n"
             f"[cyan]git init[/cyan]\n"
             f"[cyan]git add .[/cyan]\n"
             f"[cyan]git commit -m \"Initial commit\"[/cyan]",
@@ -1102,7 +1102,7 @@ def init(
     if agent_config:
         agent_folder = agent_config["folder"]
         security_notice = Panel(
-            f"Some agents may store credentials, auth tokens, or other identifying and private artifacts in the agent folder within your project.\n"
+            f"Some agents may store credentials, auth tokens, or other identifying and private artifacts in the agent folder within your Garden.\n"
             f"Consider adding [cyan]{agent_folder}[/cyan] (or parts of it) to [cyan].gitignore[/cyan] to prevent accidental credential leakage.",
             title="[yellow]Agent Folder Security[/yellow]",
             border_style="yellow",
@@ -1113,15 +1113,15 @@ def init(
 
     steps_lines = []
     if not here:
-        steps_lines.append(f"1. Go to the project folder: [cyan]cd {project_name}[/cyan]")
+        steps_lines.append(f"1. Go to the Garden folder: [cyan]cd {Garden_name}[/cyan]")
         step_num = 2
     else:
-        steps_lines.append("1. You're already in the project directory!")
+        steps_lines.append("1. You're already in the Garden directory!")
         step_num = 2
 
     # Add Codex-specific setup step if needed
     if selected_ai == "codex":
-        codex_path = project_path / ".codex"
+        codex_path = Garden_path / ".codex"
         quoted_path = shlex.quote(str(codex_path))
         if os.name == "nt":  # Windows
             cmd = f"setx CODEX_HOME {quoted_path}"
@@ -1133,7 +1133,7 @@ def init(
 
     steps_lines.append(f"{step_num}. Start using slash commands with your AI agent:")
 
-    steps_lines.append("   2.1 [cyan]/gardenkit.constitution[/] - Establish project principles")
+    steps_lines.append("   2.1 [cyan]/gardenkit.constitution[/] - Establish Garden principles")
     steps_lines.append("   2.2 [cyan]/gardenkit.gardify[/] - Create baseline specification")
     steps_lines.append("   2.3 [cyan]/gardenkit.plan[/] - Create implementation plan")
     steps_lines.append("   2.4 [cyan]/gardenkit.tasks[/] - Generate actionable tasks")
